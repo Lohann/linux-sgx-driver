@@ -109,9 +109,7 @@ bool sgx_has_sgx2;
 static int sgx_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	vma->vm_ops = &sgx_vm_ops;
-	vma->vm_flags |= VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP | VM_IO |
-			 VM_DONTCOPY;
-
+	vm_flags_set(vma, VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP | VM_IO | VM_DONTCOPY);
 	return 0;
 }
 
@@ -140,9 +138,9 @@ static unsigned long sgx_get_unmapped_area(struct file *file,
 	if (len > sgx_encl_size_max_64)
 		return -EINVAL;
 #endif
+	
+	addr = mm_get_unmapped_area(current->mm, file, addr, 2 * len, pgoff, flags);
 
-	addr = current->mm->get_unmapped_area(file, addr, 2 * len, pgoff,
-					      flags);
 	if (IS_ERR_VALUE(addr))
 		return addr;
 
@@ -348,13 +346,13 @@ static int sgx_drv_probe(struct platform_device *pdev)
 	return sgx_dev_init(&pdev->dev);
 }
 
-static int sgx_drv_remove(struct platform_device *pdev)
+static void sgx_drv_remove(struct platform_device *pdev)
 {
 	int i;
 
 	if (!atomic_cmpxchg(&sgx_init_flag, 1, 0)) {
 		pr_warn("intel_sgx: second release call skipped\n");
-		return 0;
+		return;
 	}
 
 	misc_deregister(&sgx_dev);
@@ -366,7 +364,7 @@ static int sgx_drv_remove(struct platform_device *pdev)
 #endif
 	sgx_page_cache_teardown();
 
-	return 0;
+	return;
 }
 
 #ifdef CONFIG_ACPI
